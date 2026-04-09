@@ -1,0 +1,72 @@
+services:
+
+  db:
+    image: postgres:14.3
+    container_name: ${POSTGRES_CONTAINER_NAME}
+    restart: always
+    ports:
+      - "${POSTGRES_PUBLISH_PORT}:5432"
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - teslo-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./teslo-shop
+      target: ${STAGE}
+      dockerfile: Dockerfile
+    container_name: ${BACKEND_CONTAINER_NAME}
+    restart: always
+    ports:
+      - "${BACKEND_PUBLISH_PORT}:${PORT}"
+    environment:
+      APP_VERSION: ${APP_VERSION}
+      STAGE: ${STAGE}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_NAME: ${DB_NAME}
+      DB_HOST: ${DB_HOST}
+      DB_PORT: ${DB_PORT}
+      DB_USERNAME: ${DB_USERNAME}
+      PORT: ${PORT}
+      HOST_API: ${HOST_API}
+      JWT_SECRET: ${JWT_SECRET}
+    volumes:
+      - ./teslo-shop:/app
+      - /app/node_modules
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - teslo-network
+    command: yarn start:dev
+
+  frontend:
+    build:
+      context: ./angular-tesloshop
+      dockerfile: Dockerfile
+    container_name: ${FRONTEND_CONTAINER_NAME}
+    restart: always
+    ports:
+      - "${FRONTEND_PUBLISH_PORT}:80"
+    depends_on:
+      - backend
+    networks:
+      - teslo-network
+
+volumes:
+  postgres-data:
+    driver: local
+
+networks:
+  teslo-network:
+    driver: bridge
